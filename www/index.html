@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Системный монитор</title>
+    <style>
+        body {
+            font-size: 20px;
+            background-color: slategray;
+            color: white;
+        }
+
+        button {
+            font-size: 18px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        input {
+            font-size: 18px;
+            margin: 4px;
+            padding: 4px;
+        }
+
+        .block {
+            background-color: #485057;
+            padding: 32px 64px;
+            border-radius: 16px;
+            margin-top: 64px;
+        }
+    </style>
+    <script>
+        const protocol = window.location.protocol
+        const hostname = window.location.hostname;
+        const port = 8000
+
+        window.onload = function () {
+            document.getElementById("log_in_block").style.display = 'none';
+            document.getElementById("system_monitor_block").style.display = 'none';
+            document.getElementById("create_user_block").style.display = 'none';
+            let token = localStorage.getItem('token');
+            console.log(token);
+            if (token == null) {
+                document.getElementById("log_in_block").style.display = 'block';
+            } else {
+                load_system_info();
+            }
+        }
+
+        function load_system_info() {
+            const url_system_data = protocol + "//" + hostname + ":" + port + "/system_data";
+            const payload = get_fingerprint();
+
+            const req = new XMLHttpRequest();
+
+            req.addEventListener("load", () => {
+                if (req.status === 401) {
+                    logout();
+                    return
+                }
+
+                if (req.status !== 200) {
+                    alert(`Call to web api failed.\nStatus code: ${req.status}\nMessage: ${req.responseText}`);
+                    return
+                }
+
+                document.getElementById("system_monitor_block").style.display = 'block';
+                render_system_info(JSON.parse(req.responseText));
+            });
+
+            req.addEventListener("error", (event) => {
+                alert(`Call to web api failed, error: ${event}`);
+            })
+
+            req.open("POST", url_system_data);
+            let token = localStorage.getItem('token');
+            req.setRequestHeader("Authentication", token);
+            req.setRequestHeader("Content-Type", "application/json");
+            req.send(JSON.stringify(payload));
+        }
+
+        function auth() {
+            const url_login = protocol + "//" + hostname + ":" + port + "/auth";
+
+            let login_field = document.getElementById("login_field").value;
+            let password_field = document.getElementById("password_field").value;
+            const payload = {
+                login: login_field,
+                password: password_field,
+                fingerprint: get_fingerprint(),
+            };
+            console.log(payload);
+
+            const req = new XMLHttpRequest();
+
+            req.addEventListener("load", () => {
+                if (req.status === 401) {
+                    logout();
+                    return
+                }
+
+                if (req.status !== 200) {
+                    alert(`Call to web api failed.\nStatus code: ${req.status}\nMessage: ${req.responseText}`);
+                    return;
+                }
+
+                const parsed = JSON.parse(req.responseText);
+                localStorage.setItem('role', parsed['role']);
+                localStorage.setItem('token', parsed['token']);
+                document.getElementById("log_in_block").style.display = 'none';
+                load_system_info();
+            });
+
+            req.addEventListener("error", (event) => {
+                alert(`Call to web api failed, error: ${event}`);
+            })
+
+            req.open("POST", url_login);
+            req.setRequestHeader("Content-Type", "application/json");
+            req.send(JSON.stringify(payload));
+        }
+
+        function create_user() {
+            const url_login = protocol + "//" + hostname + ":" + port + "/registr";
+
+            let login_field = document.getElementById("new_login_field").value;
+            let password_field = document.getElementById("new_password_field").value;
+            let password_field_2 = document.getElementById("new_password_field_2").value;
+            let admin_field = document.getElementById("is_admin_field").checked;
+            const payload = {};
+
+            if (login_field === '') {
+                alert("Введите логин");
+                return;
+            }
+            payload['login'] = login_field;
+
+            if (password_field === '') {
+                alert("Введите пароль");
+                return;
+            }
+            payload['password'] = password_field;
+
+            if (password_field_2 === '') {
+                alert("Введите пароль повторно");
+                return;
+            }
+
+            if (password_field !== password_field_2) {
+                alert("Пароли не равны");
+                return;
+            }
+
+            payload['admin'] = admin_field;
+            payload['fingerprint'] = get_fingerprint();
+
+            const req = new XMLHttpRequest();
+
+            req.addEventListener("load", () => {
+                if (req.status === 401) {
+                    logout();
+                    return
+                }
+
+                if (req.status !== 200) {
+                    alert(`Call to web api failed.\nStatus code: ${req.status}\nMessage: ${req.responseText}`);
+                    return;
+                }
+
+                document.getElementById("new_login_field").value = "";
+                document.getElementById("new_password_field").value = "";
+                document.getElementById("new_password_field_2").value = "";
+                document.getElementById("is_admin_field").value = false;
+                alert('Пользователь успешно создан');
+            });
+
+            req.addEventListener("error", (event) => {
+                alert(`Call to web api failed, error: ${event}`);
+            })
+
+            req.open("POST", url_login);
+            let token = localStorage.getItem('token');
+            req.setRequestHeader("Authentication", token);
+            req.setRequestHeader("Content-Type", "application/json");
+            req.send(JSON.stringify(payload));
+        }
+
+        function show_system_info() {
+            document.getElementById("system_monitor_block").style.display = 'block';
+            document.getElementById("create_user_block").style.display = 'none';
+        }
+
+        function show_create_users() {
+            document.getElementById("system_monitor_block").style.display = 'none';
+            document.getElementById("create_user_block").style.display = 'block';
+        }
+
+        function render_system_info(parsed) {
+            console.log("web api response: ", parsed);
+
+            document.getElementById("cpu").innerText = parsed['cpu'];
+            document.getElementById("temp").innerText = parsed['temp'];
+            document.getElementById("device").innerText = parsed['device'];
+            document.getElementById("distro").innerText = parsed['distro'];
+            document.getElementById("environment").innerText = parsed['environment'];
+            document.getElementById("gpu").innerText = parsed['gpu'];
+            document.getElementById("hostname").innerText = parsed['hostname'];
+            document.getElementById("kernel").innerText = parsed['kernel'];
+            document.getElementById("memory").innerText = parsed['memory'];
+            document.getElementById("create_users_button").style.visibility = localStorage.getItem('role') === 'ADMIN' ? 'visible' : 'hidden';
+        }
+
+        function logout() {
+            alert("В доступе отказано!");
+            localStorage.clear();
+            document.getElementById("log_in_block").style.display = 'block';
+            document.getElementById("system_monitor_block").style.display = 'none';
+            document.getElementById("create_user_block").style.display = 'none';
+        }
+
+        function get_fingerprint() {
+            let user_agent = navigator.userAgent;
+            let cores = navigator.hardwareConcurrency.toString();
+
+            return {
+                device_id: String(hash(String(user_agent))).substring(0, 8) + String(hash(String(cores))).substring(0, 2),
+                webdriver: navigator.webdriver,
+                dev_tools: checkDevToolsConsole()
+            }
+        }
+
+        function hash(str) {
+            let hash = 5381;
+            let i = str.length;
+
+            while (i) {
+                hash = hash * 33 ^ str.charCodeAt(--i);
+            }
+            return hash >>> 0;
+        }
+
+        function checkDevToolsConsole() {
+            let result = false;
+            try {
+                let n = /./;
+                n.checked = false;
+                n.toString = function () {
+                    this.checked = true
+                };
+                console.log(n);
+                result = n.checked;
+            } catch (err) {
+                console.log(err);
+            }
+            return result;
+        }
+
+    </script>
+</head>
+<body style="display: flex; justify-content: center;">
+
+<div id="log_in_block" class="block">
+    <h3>Вход в систему</h3>
+    <table>
+        <tr>
+            <td>Логин:</td>
+            <td><input id="login_field"/></td>
+        </tr>
+        <tr>
+            <td>Пароль:</td>
+            <td><input id="password_field" type="password"/></td>
+        </tr>
+        <tr>
+            <td>
+                <button onclick="auth()">Войти</button>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div id="system_monitor_block" class="block">
+    <button id="create_users_button" style="visibility: hidden" onclick="show_create_users()">Перейти к созданию пользователей</button>
+    <button onclick="logout()">Выйти</button>
+    <h3>Системная информация</h3>
+    <table>
+        <tr>
+            <td style="font-weight: bold">cpu:</td>
+            <td id="cpu"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">temp:</td>
+            <td id="temp"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">device:</td>
+            <td id="device"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">distro:</td>
+            <td id="distro"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">environment:</td>
+            <td id="environment"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">gpu:</td>
+            <td id="gpu"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">hostname:</td>
+            <td id="hostname"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">kernel:</td>
+            <td id="kernel"></td>
+        </tr>
+        <tr>
+            <td style="font-weight: bold">memory:</td>
+            <td id="memory"></td>
+        </tr>
+    </table>
+</div>
+
+<div id="create_user_block" class="block">
+    <button onclick="show_system_info()">Перейти к системной информации</button>
+    <button onclick="logout()">Выйти</button>
+    <h3>Создание нового пользователя</h3>
+    <table>
+        <tr>
+            <td>Логин:</td>
+            <td><input id="new_login_field"/></td>
+        </tr>
+        <tr>
+            <td>Пароль:</td>
+            <td><input id="new_password_field" type="password"/></td>
+        </tr>
+        <tr>
+            <td>Повторите пароль:</td>
+            <td><input id="new_password_field_2" type="password"/></td>
+        </tr>
+        <tr>
+            <td>Администратор:</td>
+            <td><input id="is_admin_field" type="checkbox"/></td>
+        </tr>
+        <tr>
+            <td>
+                <button onclick="create_user()">Создать</button>
+            </td>
+        </tr>
+    </table>
+</div>
+
+</body>
+</html>
